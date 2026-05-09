@@ -15,3 +15,9 @@ CONFIG_ZB_ENABLED=y
 CONFIG_ZB_ZED=y
 # end of Zboss
 # end of Component config
+
+#
+# esp_timer — enable ISR dispatch so sensor_timer_isr_cb runs in
+# hardware interrupt context (SYSTIMER) rather than a helper task.
+#
+CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD=y
