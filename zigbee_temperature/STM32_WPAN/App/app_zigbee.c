@@ -38,6 +38,8 @@
 #include "zcl/general/zcl.temp.meas.h"
 
 /* USER CODE BEGIN Includes */
+#include "zcl/general/zcl.wcm.h"
+#include "stm32wbxx_hal.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,6 +60,10 @@
 /* USER CODE END Temperature_meas (endpoint 1) defines */
 
 /* USER CODE BEGIN PD */
+#define AHT20_I2C_ADDR          (0x38 << 1)
+#define AHT20_MEAS_DELAY_MS     80U
+#define AHT20_STATUS_BUSY       (1U << 7)
+#define SENSOR_READ_PERIOD_US   (30UL * 1000000UL)
 /* USER CODE END PD */
 
 /* Private macros ------------------------------------------------------------*/
@@ -68,6 +74,7 @@
 enum ZbStatusCodeT ZbStartupWait(struct ZigBeeT *zb, struct ZbStartupT *config);
 
 /* USER CODE BEGIN ED */
+extern I2C_HandleTypeDef hi2c1;
 /* USER CODE END ED */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -86,6 +93,8 @@ static void APP_ZIGBEE_ProcessNotifyM0ToM4(void);
 static void APP_ZIGBEE_ProcessRequestM0ToM4(void);
 
 /* USER CODE BEGIN PFP */
+static void APP_ZIGBEE_SensorRead(void);
+static void APP_ZIGBEE_SensorTimerCb(void);
 /* USER CODE END PFP */
 
 /* Private variables ---------------------------------------------------------*/
@@ -115,6 +124,8 @@ struct zigbee_app_info
 static struct zigbee_app_info zigbee_app_info;
 
 /* USER CODE BEGIN PV */
+static struct ZbZclClusterT *humidity_server;
+static uint8_t sensor_timer_id;
 /* USER CODE END PV */
 /* Functions Definition ------------------------------------------------------*/
 
@@ -147,6 +158,8 @@ void APP_ZIGBEE_Init(void)
   UTIL_SEQ_RegTask(1U << CFG_TASK_ZIGBEE_NETWORK_FORM, UTIL_SEQ_RFU, APP_ZIGBEE_NwkForm);
 
   /* USER CODE BEGIN APP_ZIGBEE_INIT */
+  UTIL_SEQ_RegTask(1U << CFG_TASK_SENSOR_READ, UTIL_SEQ_RFU, APP_ZIGBEE_SensorRead);
+  HW_TS_Create(CFG_TIM_SENSOR_READ, &sensor_timer_id, hw_ts_Repeated, APP_ZIGBEE_SensorTimerCb);
   /* USER CODE END APP_ZIGBEE_INIT */
 
   /* Start the Zigbee on the CPU2 side */
@@ -214,6 +227,11 @@ static void APP_ZIGBEE_ConfigEndpoints(void)
   ZbZclClusterEndpointRegister(zigbee_app_info.temperature_meas_server_1);
 
   /* USER CODE BEGIN CONFIG_ENDPOINT */
+  /* Relative Humidity Server: 0 = 0.00 %RH, 10000 = 100.00 %RH */
+  humidity_server = ZbZclWaterContentMeasServerAlloc(zigbee_app_info.zb, SW1_ENDPOINT,
+                                                     ZCL_CLUSTER_MEAS_HUMIDITY, 0, 10000);
+  assert(humidity_server != NULL);
+  ZbZclClusterEndpointRegister(humidity_server);
   /* USER CODE END CONFIG_ENDPOINT */
 }
 
@@ -262,7 +280,10 @@ static void APP_ZIGBEE_NwkForm(void)
       zigbee_app_info.init_after_join = true;
       APP_DBG("Startup done !\n");
       /* USER CODE BEGIN 0 */
-
+      /* Start periodic sensor reads every 30 seconds */
+      HW_TS_Start(sensor_timer_id, SENSOR_READ_PERIOD_US / CFG_TS_TICK_VAL);
+      /* Trigger first read immediately */
+      UTIL_SEQ_SetTask(1U << CFG_TASK_SENSOR_READ, CFG_SCH_PRIO_0);
       /* USER CODE END 0 */
     }
     else
@@ -636,5 +657,45 @@ static void APP_ZIGBEE_ProcessRequestM0ToM4(void)
 }
 
 /* USER CODE BEGIN FD_LOCAL_FUNCTIONS */
+
+static void APP_ZIGBEE_SensorTimerCb(void)
+{
+  UTIL_SEQ_SetTask(1U << CFG_TASK_SENSOR_READ, CFG_SCH_PRIO_0);
+}
+
+static void APP_ZIGBEE_SensorRead(void)
+{
+  uint8_t cmd[] = {0xAC, 0x33, 0x00};
+  uint8_t data[6];
+  uint32_t raw_hum, raw_temp;
+  int16_t  zcl_temp;
+  uint16_t zcl_hum;
+
+  if (HAL_I2C_Master_Transmit(&hi2c1, AHT20_I2C_ADDR, cmd, sizeof(cmd), HAL_MAX_DELAY) != HAL_OK)
+    return;
+
+  HAL_Delay(AHT20_MEAS_DELAY_MS);
+
+  if (HAL_I2C_Master_Receive(&hi2c1, AHT20_I2C_ADDR, data, sizeof(data), HAL_MAX_DELAY) != HAL_OK)
+    return;
+
+  if (data[0] & AHT20_STATUS_BUSY)
+    return;
+
+  raw_hum  = ((uint32_t)data[1] << 12) | ((uint32_t)data[2] << 4) | (data[3] >> 4);
+  raw_temp = ((uint32_t)(data[3] & 0x0F) << 16) | ((uint32_t)data[4] << 8) | data[5];
+
+  /* T(°C) = raw * 200 / 2^20 - 50 → ZCL unit = °C × 100 */
+  zcl_temp = (int16_t)(((int32_t)raw_temp * 20000 / 1048576) - 5000);
+  /* RH(%) = raw * 100 / 2^20 → ZCL unit = %RH × 100 */
+  zcl_hum  = (uint16_t)((uint32_t)raw_hum * 10000 / 1048576);
+
+  ZbZclAttrIntegerWrite(zigbee_app_info.temperature_meas_server_1,
+                        ZCL_TEMP_MEAS_ATTR_MEAS_VAL, (long long)zcl_temp);
+  ZbZclAttrIntegerWrite(humidity_server,
+                        ZCL_WC_MEAS_ATTR_MEAS_VAL, (long long)zcl_hum);
+
+  APP_DBG("AHT20: temp=%d (x100 degC)  hum=%u (x100 %%RH)", zcl_temp, zcl_hum);
+}
 
 /* USER CODE END FD_LOCAL_FUNCTIONS */
