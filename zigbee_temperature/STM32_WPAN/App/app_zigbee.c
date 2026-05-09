@@ -35,7 +35,7 @@
 /* Private includes -----------------------------------------------------------*/
 #include <assert.h>
 #include "zcl/zcl.h"
-#include "zcl/general/zcl.onoff.h"
+#include "zcl/general/zcl.temp.meas.h"
 
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -49,6 +49,13 @@
 #define CHANNEL                                     11
 
 #define SW1_ENDPOINT                                12
+
+/* Temperature_meas (endpoint 1) specific defines ------------------------------------------------*/
+#define TEMP_MIN_1                      -4000
+#define TEMP_MAX_1                      8500
+#define TEMP_TOLERANCE_1                      30
+/* USER CODE BEGIN Temperature_meas (endpoint 1) defines */
+/* USER CODE END Temperature_meas (endpoint 1) defines */
 
 /* USER CODE BEGIN PD */
 /* USER CODE END PD */
@@ -103,7 +110,7 @@ struct zigbee_app_info
   uint32_t join_delay;
   bool init_after_join;
 
-  struct ZbZclClusterT *onOff_client_1;
+  struct ZbZclClusterT *temperature_meas_server_1;
 };
 static struct zigbee_app_info zigbee_app_info;
 
@@ -196,15 +203,15 @@ static void APP_ZIGBEE_ConfigEndpoints(void)
 
   /* Endpoint: SW1_ENDPOINT */
   req.profileId = ZCL_PROFILE_HOME_AUTOMATION;
-  req.deviceId = ZCL_DEVICE_ONOFF_SWITCH;
+  req.deviceId = ZCL_DEVICE_SIMPLE_SENSOR;
   req.endpoint = SW1_ENDPOINT;
   ZbZclAddEndpoint(zigbee_app_info.zb, &req, &conf);
   assert(conf.status == ZB_STATUS_SUCCESS);
 
-  /* OnOff client */
-  zigbee_app_info.onOff_client_1 = ZbZclOnOffClientAlloc(zigbee_app_info.zb, SW1_ENDPOINT);
-  assert(zigbee_app_info.onOff_client_1 != NULL);
-  ZbZclClusterEndpointRegister(zigbee_app_info.onOff_client_1);
+  /* Temperature meas server */
+  zigbee_app_info.temperature_meas_server_1 = ZbZclTempMeasServerAlloc(zigbee_app_info.zb, SW1_ENDPOINT, TEMP_MIN_1, TEMP_MAX_1, TEMP_TOLERANCE_1);
+  assert(zigbee_app_info.temperature_meas_server_1 != NULL);
+  ZbZclClusterEndpointRegister(zigbee_app_info.temperature_meas_server_1);
 
   /* USER CODE BEGIN CONFIG_ENDPOINT */
   /* USER CODE END CONFIG_ENDPOINT */
@@ -426,7 +433,7 @@ static void APP_ZIGBEE_CheckWirelessFirmwareInfo(void)
     APP_DBG("Link Key value: %s", Z09_LL_string);
     /* print clusters allocated */
     APP_DBG("Clusters allocated are:");
-    APP_DBG("onOff Client on Endpoint %d", SW1_ENDPOINT);
+    APP_DBG("temperature_meas Server on Endpoint %d", SW1_ENDPOINT);
     APP_DBG("**********************************************************");
   }
 }

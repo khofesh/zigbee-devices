@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "driver_aht20_interface.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,7 +36,10 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+char readBuf[1];
+uint8_t txData;
+__IO ITStatus UartReady = SET;
+RingBuffer txBuf, rxBuf;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -52,7 +55,7 @@ DMA_HandleTypeDef hdma_usart1_tx;
 RTC_HandleTypeDef hrtc;
 
 /* USER CODE BEGIN PV */
-
+static aht20_handle_t gs_handle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -83,7 +86,12 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+	uint8_t res;
+	uint32_t temperature_raw;
+	uint32_t humidity_raw;
+	float temperature;
+	uint8_t humidity;
+	aht20_info_t info;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -127,8 +135,68 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  DRIVER_AHT20_LINK_INIT(&gs_handle, aht20_handle_t);
+  DRIVER_AHT20_LINK_IIC_INIT(&gs_handle, aht20_interface_iic_init);
+  DRIVER_AHT20_LINK_IIC_DEINIT(&gs_handle, aht20_interface_iic_deinit);
+  DRIVER_AHT20_LINK_IIC_READ_CMD(&gs_handle, aht20_interface_iic_read_cmd);
+  DRIVER_AHT20_LINK_IIC_WRITE_CMD(&gs_handle, aht20_interface_iic_write_cmd);
+  DRIVER_AHT20_LINK_DELAY_MS(&gs_handle, aht20_interface_delay_ms);
+  DRIVER_AHT20_LINK_DEBUG_PRINT(&gs_handle, aht20_interface_debug_print);
+
+  /* get aht20 information */
+  res = aht20_info(&info);
+  if (res != 0)
+  {
+      aht20_interface_debug_print("aht20: get info failed.\n");
+
+      return 1;
+  }
+  else
+  {
+      /* print aht20 information */
+      aht20_interface_debug_print("aht20: chip is %s.\n", info.chip_name);
+      aht20_interface_debug_print("aht20: manufacturer is %s.\n", info.manufacturer_name);
+      aht20_interface_debug_print("aht20: interface is %s.\n", info.interface);
+      aht20_interface_debug_print("aht20: driver version is %d.%d.\n", info.driver_version / 1000, (info.driver_version % 1000) / 100);
+      aht20_interface_debug_print("aht20: min supply voltage is %0.1fV.\n", info.supply_voltage_min_v);
+      aht20_interface_debug_print("aht20: max supply voltage is %0.1fV.\n", info.supply_voltage_max_v);
+      aht20_interface_debug_print("aht20: max current is %0.2fmA.\n", info.max_current_ma);
+      aht20_interface_debug_print("aht20: max temperature is %0.1fC.\n", info.temperature_max);
+      aht20_interface_debug_print("aht20: min temperature is %0.1fC.\n", info.temperature_min);
+  }
+
+  /* start basic read test */
+  aht20_interface_debug_print("aht20: start read test.\n");
+
+  /* aht20 init */
+  res = aht20_init(&gs_handle);
+  if (res != 0)
+  {
+      aht20_interface_debug_print("aht20: init failed.\n");
+
+      return 1;
+  }
+
+  /* delay 2000 ms for read */
+  aht20_interface_delay_ms(2000);
   while (1)
   {
+      /* read temperature and humidity */
+      res = aht20_read_temperature_humidity(&gs_handle, (uint32_t *)&temperature_raw, (float *)&temperature, (uint32_t *)&humidity_raw, (uint8_t *)&humidity);
+      if (res != 0)
+      {
+          aht20_interface_debug_print("aht20: read failed.\n");
+          (void)aht20_deinit(&gs_handle);
+
+          return 1;
+      }
+
+      /* print result */
+      aht20_interface_debug_print("aht20: temperature: %.01fC.\n", temperature);
+      aht20_interface_debug_print("aht20: humidity: %d%%.\n", humidity);
+
+      /* delay 2000 ms*/
+      aht20_interface_delay_ms(2000);
     /* USER CODE END WHILE */
     MX_APPE_Process();
 
@@ -523,6 +591,16 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+uint8_t UART_Transmit(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t len)
+{
+  if(HAL_UART_Transmit_IT(huart, pData, len) != HAL_OK)
+  {
+    if(RingBuffer_Write(&txBuf, pData, len) != RING_BUFFER_OK)
+      return 0;
+  }
+  return 1;
+}
+
 
 /* USER CODE END 4 */
 
