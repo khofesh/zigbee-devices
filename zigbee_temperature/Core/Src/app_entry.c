@@ -595,6 +595,7 @@ void TL_TRACES_EvtReceived(TL_EvtPacket_t * hcievt)
 void DbgOutputInit(void)
 {
 #ifdef CFG_DEBUG_TRACE_UART
+  MX_USART1_UART_Init();
   return;
 #endif /* CFG_DEBUG_TRACE_UART */
 }

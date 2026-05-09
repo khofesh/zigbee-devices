@@ -35,6 +35,7 @@
 /* Private includes -----------------------------------------------------------*/
 #include <assert.h>
 #include "zcl/zcl.h"
+#include "zcl/general/zcl.onoff.h"
 
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -47,7 +48,7 @@
 #define APP_ZIGBEE_STARTUP_FAIL_DELAY               500U
 #define CHANNEL                                     11
 
-#define SW1_ENDPOINT                                1
+#define SW1_ENDPOINT                                12
 
 /* USER CODE BEGIN PD */
 /* USER CODE END PD */
@@ -102,6 +103,7 @@ struct zigbee_app_info
   uint32_t join_delay;
   bool init_after_join;
 
+  struct ZbZclClusterT *onOff_client_1;
 };
 static struct zigbee_app_info zigbee_app_info;
 
@@ -198,6 +200,11 @@ static void APP_ZIGBEE_ConfigEndpoints(void)
   req.endpoint = SW1_ENDPOINT;
   ZbZclAddEndpoint(zigbee_app_info.zb, &req, &conf);
   assert(conf.status == ZB_STATUS_SUCCESS);
+
+  /* OnOff client */
+  zigbee_app_info.onOff_client_1 = ZbZclOnOffClientAlloc(zigbee_app_info.zb, SW1_ENDPOINT);
+  assert(zigbee_app_info.onOff_client_1 != NULL);
+  ZbZclClusterEndpointRegister(zigbee_app_info.onOff_client_1);
 
   /* USER CODE BEGIN CONFIG_ENDPOINT */
   /* USER CODE END CONFIG_ENDPOINT */
@@ -419,6 +426,7 @@ static void APP_ZIGBEE_CheckWirelessFirmwareInfo(void)
     APP_DBG("Link Key value: %s", Z09_LL_string);
     /* print clusters allocated */
     APP_DBG("Clusters allocated are:");
+    APP_DBG("onOff Client on Endpoint %d", SW1_ENDPOINT);
     APP_DBG("**********************************************************");
   }
 }
