@@ -4,9 +4,11 @@
   "idf.openOcdConfigs": [
     "board/esp32c6-builtin.cfg"
   ],
-  "idf.port": "detect",
+  "idf.port": "/dev/ttyACM0",
   "idf.currentSetup": "/home/fahmad/esp/esp-idf",
   "idf.customExtraVars": {
-    "IDF_TARGET": "esp32c6"
-  }
+    "IDF_TARGET": "esp32c6",
+    "OPENOCD_USB_ADAPTER_LOCATION": "1-4.4"
+  },
+  "idf.flashType": "UART"
 }

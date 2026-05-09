@@ -161,6 +161,12 @@ static void start_sensor_task(void)
     }
 }
 
+/* Wrapper with void return to satisfy esp_zb_callback_t signature */
+static void bdb_start_steering_cb(uint8_t param)
+{
+    esp_zb_bdb_start_top_level_commissioning(param);
+}
+
 /* --------------------------------------------------------------------------
  * Zigbee stack signal handler
  * -------------------------------------------------------------------------- */
@@ -179,7 +185,9 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
     case ESP_ZB_BDB_SIGNAL_DEVICE_FIRST_START:
     case ESP_ZB_BDB_SIGNAL_DEVICE_REBOOT:
         if (err_status != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to initialize Zigbee stack (%s)", esp_err_to_name(err_status));
+            /* Corrupted NVRAM (e.g. after reflash) — wipe zb_storage and reboot */
+            ESP_LOGE(TAG, "Failed to initialize Zigbee stack (%s), factory reset", esp_err_to_name(err_status));
+            esp_zb_factory_reset();
             break;
         }
         ESP_LOGI(TAG, "Device started (%s factory-reset mode)",
@@ -209,8 +217,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
             /* Coordinator not found or busy — retry in 1 s */
             ESP_LOGW(TAG, "Network steering failed (%s), retrying...",
                      esp_err_to_name(err_status));
-            esp_zb_scheduler_alarm(
-                (esp_zb_callback_t)esp_zb_bdb_start_top_level_commissioning,
+            esp_zb_scheduler_alarm(bdb_start_steering_cb,
                 ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
         }
         break;
