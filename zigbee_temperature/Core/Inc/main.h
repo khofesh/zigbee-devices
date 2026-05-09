@@ -54,7 +54,6 @@ extern "C" {
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
-void MX_USART1_UART_Init(void);
 
 /* USER CODE BEGIN EFP */
 uint8_t UART_Transmit(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t len);

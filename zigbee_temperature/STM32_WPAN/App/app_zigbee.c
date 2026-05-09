@@ -31,6 +31,7 @@
 #include "stm32wbxx_core_interface_def.h"
 #include "zigbee_types.h"
 #include "stm32_seq.h"
+#include "stm32_lpm.h"
 
 /* Private includes -----------------------------------------------------------*/
 #include <assert.h>
@@ -49,6 +50,7 @@
 /* Private defines -----------------------------------------------------------*/
 #define APP_ZIGBEE_STARTUP_FAIL_DELAY               500U
 #define CHANNEL                                     11
+#define ZED_SLEEP_TIME_30S                           1 /* 30s sleep time unit */
 
 #define SW1_ENDPOINT                                12
 
@@ -188,6 +190,7 @@ static void APP_ZIGBEE_StackLayersInit(void)
   APP_ZIGBEE_ConfigEndpoints();
 
   /* USER CODE BEGIN APP_ZIGBEE_StackLayersInit */
+  APP_DBG("ZbInit OK, endpoints configured");
   /* USER CODE END APP_ZIGBEE_StackLayersInit */
 
   /* Configure the joining parameters */
@@ -254,7 +257,7 @@ static void APP_ZIGBEE_NwkForm(void)
     ZbStartupConfigGetProDefaults(&config);
 
     /* Set the centralized network */
-	APP_DBG("Network config : APP_STARTUP_CENTRALIZED_END_DEVICE - NONE SLEEPY");
+    APP_DBG("Network config : APP_STARTUP_CENTRALIZED_END_DEVICE");
     config.startupControl = zigbee_app_info.startupControl;
 
     /* Using the default HA preconfigured Link Key */
@@ -265,8 +268,8 @@ static void APP_ZIGBEE_NwkForm(void)
     config.channelList.list[0].channelMask = 1 << CHANNEL; /*Channel in use */
 
     /* Add End device configuration */
-	config.capability &= ~(MCP_ASSOC_CAP_DEV_TYPE | MCP_ASSOC_CAP_ALT_COORD);
-    config.endDeviceTimeout=0xFF;
+    config.capability &= ~(MCP_ASSOC_CAP_RXONIDLE | MCP_ASSOC_CAP_DEV_TYPE | MCP_ASSOC_CAP_ALT_COORD);
+    config.endDeviceTimeout=ZED_SLEEP_TIME_30S;
 
     /* Using ZbStartupWait (blocking) */
     status = ZbStartupWait(zigbee_app_info.zb, &config);
@@ -276,6 +279,10 @@ static void APP_ZIGBEE_NwkForm(void)
 
     if (status == ZB_STATUS_SUCCESS)
     {
+      /* Enabling Stop mode */
+      UTIL_LPM_SetStopMode(1U << CFG_LPM_APP, UTIL_LPM_ENABLE);
+      UTIL_LPM_SetOffMode(1U << CFG_LPM_APP, UTIL_LPM_DISABLE);
+
       zigbee_app_info.join_delay = 0U;
       zigbee_app_info.init_after_join = true;
       APP_DBG("Startup done !\n");

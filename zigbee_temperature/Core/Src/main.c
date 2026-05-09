@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "driver_aht20_interface.h"
+#include <stdint.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -67,7 +68,7 @@ static void MX_IPCC_Init(void);
 static void MX_RTC_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_LPUART1_UART_Init(void);
-void MX_USART1_UART_Init(void);
+static void MX_USART1_UART_Init(void);
 static void MX_RF_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -75,6 +76,10 @@ static void MX_RF_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static int32_t aht20_raw_to_temp_deci_c(uint32_t raw)
+{
+  return ((int32_t)((raw * 2000UL) / 1048576UL)) - 500;
+}
 
 /* USER CODE END 0 */
 
@@ -158,11 +163,11 @@ int main(void)
       aht20_interface_debug_print("aht20: manufacturer is %s.\n", info.manufacturer_name);
       aht20_interface_debug_print("aht20: interface is %s.\n", info.interface);
       aht20_interface_debug_print("aht20: driver version is %d.%d.\n", info.driver_version / 1000, (info.driver_version % 1000) / 100);
-      aht20_interface_debug_print("aht20: min supply voltage is %0.1fV.\n", info.supply_voltage_min_v);
-      aht20_interface_debug_print("aht20: max supply voltage is %0.1fV.\n", info.supply_voltage_max_v);
-      aht20_interface_debug_print("aht20: max current is %0.2fmA.\n", info.max_current_ma);
-      aht20_interface_debug_print("aht20: max temperature is %0.1fC.\n", info.temperature_max);
-      aht20_interface_debug_print("aht20: min temperature is %0.1fC.\n", info.temperature_min);
+      aht20_interface_debug_print("aht20: min supply voltage is 2.2V.\n");
+      aht20_interface_debug_print("aht20: max supply voltage is 5.5V.\n");
+      aht20_interface_debug_print("aht20: max current is 0.98mA.\n");
+      aht20_interface_debug_print("aht20: max temperature is 85.0C.\n");
+      aht20_interface_debug_print("aht20: min temperature is -40.0C.\n");
   }
 
   /* start basic read test */
@@ -192,7 +197,12 @@ int main(void)
       }
 
       /* print result */
-      aht20_interface_debug_print("aht20: temperature: %.01fC.\n", temperature);
+      int32_t temp_deci_c = aht20_raw_to_temp_deci_c(temperature_raw);
+      uint32_t temp_abs_deci_c = (temp_deci_c < 0) ? (uint32_t)(-temp_deci_c) : (uint32_t)temp_deci_c;
+      aht20_interface_debug_print("aht20: temperature: %s%lu.%luC.\n",
+                                  (temp_deci_c < 0) ? "-" : "",
+                                  temp_abs_deci_c / 10UL,
+                                  temp_abs_deci_c % 10UL);
       aht20_interface_debug_print("aht20: humidity: %d%%.\n", humidity);
 
       /* delay 2000 ms*/
@@ -413,7 +423,7 @@ static void MX_LPUART1_UART_Init(void)
   * @param None
   * @retval None
   */
-void MX_USART1_UART_Init(void)
+static void MX_USART1_UART_Init(void)
 {
 
   /* USER CODE BEGIN USART1_Init 0 */

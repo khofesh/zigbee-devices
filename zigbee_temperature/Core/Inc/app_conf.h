@@ -100,7 +100,7 @@
  *
  ******************************************************************************/
 
-#define CFG_FULL_LOW_POWER    0
+#define CFG_FULL_LOW_POWER    1
 
 #if (CFG_FULL_LOW_POWER == 1)
 #undef CFG_LPM_SUPPORTED
@@ -213,7 +213,7 @@ typedef enum
  * keep debugger enabled while in any low power mode when set to 1
  * should be set to 0 in production
  */
-#define CFG_DEBUGGER_SUPPORTED    1
+#define CFG_DEBUGGER_SUPPORTED    0
 
 #if (CFG_FULL_LOW_POWER == 1)
 #undef CFG_DEBUGGER_SUPPORTED
@@ -228,7 +228,7 @@ typedef enum
  * Note : Refer to utilities_conf.h file in order to details
  *        the level of traces : CFG_DEBUG_TRACE_FULL or CFG_DEBUG_TRACE_LIGHT
  *****************************************************************************/
-#define CFG_DEBUG_TRACE    1
+#define CFG_DEBUG_TRACE    0
 
 #if (CFG_FULL_LOW_POWER == 1)
 #undef CFG_DEBUG_TRACE
