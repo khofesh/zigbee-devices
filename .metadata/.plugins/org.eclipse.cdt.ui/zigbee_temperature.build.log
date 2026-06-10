@@ -1,0 +1,10 @@
+16:27:39 **** Incremental Build of configuration Debug for project zigbee_temperature ****
+make -j24 all 
+arm-none-eabi-size  zigbee_temperature.elf 
+   text	   data	    bss	    dec	    hex	filename
+  94360	   2811	   3940	 101111	  18af7	zigbee_temperature.elf
+Finished building: default.size.stdout
+ 
+
+16:27:39 Build Finished. 0 errors, 0 warnings. (took 148ms)
+
