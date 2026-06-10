@@ -32,6 +32,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "driver/gpio.h"
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -51,6 +52,35 @@ static const char *TAG = "ZB_TEMP_SENSOR";
 
 /* Measurement period in milliseconds */
 #define SENSOR_UPDATE_INTERVAL_MS   10000
+
+/*
+ * Status LED — onboard blue LED on FireBeetle 2 ESP32-C6 is GPIO15 (active-high).
+ * Blinks once each time a measurement is successfully pushed to the Zigbee stack,
+ * so you get visual confirmation that the device is alive and sending data.
+ */
+#define STATUS_LED_GPIO   GPIO_NUM_15
+#define STATUS_LED_ON_MS  50
+
+static void status_led_init(void)
+{
+    gpio_config_t cfg = {
+        .pin_bit_mask = 1ULL << STATUS_LED_GPIO,
+        .mode         = GPIO_MODE_OUTPUT,
+        .pull_up_en   = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type    = GPIO_INTR_DISABLE,
+    };
+    ESP_ERROR_CHECK(gpio_config(&cfg));
+    gpio_set_level(STATUS_LED_GPIO, 0);
+}
+
+/* Brief blink to signal "data sent". Runs in sensor_task context (not the ISR). */
+static void status_led_blink(void)
+{
+    gpio_set_level(STATUS_LED_GPIO, 1);
+    vTaskDelay(pdMS_TO_TICKS(STATUS_LED_ON_MS));
+    gpio_set_level(STATUS_LED_GPIO, 0);
+}
 
 /*
  * Binary semaphore posted by the timer ISR and consumed by sensor_task.
@@ -161,6 +191,8 @@ static void sensor_task(void *pvParameters)
     }
     ESP_LOGI(TAG, "AHT20-F initialized");
 
+    status_led_init();
+
     s_measure_sem = xSemaphoreCreateBinary();
     configASSERT(s_measure_sem);
 
@@ -221,6 +253,9 @@ static void sensor_task(void *pvParameters)
             ESP_ZB_ZCL_ATTR_REL_HUMIDITY_MEASUREMENT_VALUE_ID,
             &hum_zcl, false);
         esp_zb_lock_release();
+
+        /* Visual confirmation that a measurement was pushed to the stack. */
+        status_led_blink();
 
         ESP_LOGI(TAG, "temp: %.2f °C  humidity: %.2f %%",
                  temp_s, (float)hum_zcl / 100.0f);
